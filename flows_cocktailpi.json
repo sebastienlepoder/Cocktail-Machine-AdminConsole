@@ -246,6 +246,17 @@
         "className": ""
     },
     {
+        "id": "ui_group_dashboard_modules",
+        "type": "ui_group",
+        "name": "Registered Modules",
+        "tab": "ui_tab_main",
+        "order": 2,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
         "id": "init_system",
         "type": "inject",
         "z": "cocktail_main_tab",
@@ -275,7 +286,7 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Initialize Storage",
-        "func": "// Initialize all storage\nflow.set('registered_modules', flow.get('registered_modules') || {});\nglobal.set('discovered_modules', {});\nglobal.set('active_modules', {});\nglobal.set('selected_module', null);\nglobal.set('selected_discovered', null);\nglobal.set('admin_authenticated', false);\n\n// Initialize pump duration with default value\nflow.set('pump_duration', 1000);\n\n// Default network settings\nlet netSettings = flow.get('network_settings');\nif (!netSettings) {\n    flow.set('network_settings', {\n        home_ssid: '',\n        home_pass: '',\n        ap_ssid: 'CocktailMachine',\n        ap_pass: 'Cocktail2024!',\n        mqtt_host: '192.168.50.1',\n        mqtt_port: 1883\n    });\n}\n\nmsg.payload = {\n    status: 'System initialized',\n    timestamp: new Date()\n};\nreturn msg;",
+        "func": "// Initialize all storage\nflow.set('registered_modules', flow.get('registered_modules') || {});\nglobal.set('discovered_modules', {});\nglobal.set('active_modules', {});\nglobal.set('selected_module', null);\nglobal.set('selected_discovered', null);\nglobal.set('admin_authenticated', false);\n\n// Initialize pump duration with default value in both places\nflow.set('pump_duration', 1000);\nglobal.set('pump_duration', 1000);\n\n// Default network settings\nlet netSettings = flow.get('network_settings');\nif (!netSettings) {\n    flow.set('network_settings', {\n        home_ssid: '',\n        home_pass: '',\n        ap_ssid: 'CocktailMachine',\n        ap_pass: 'Cocktail2024!',\n        mqtt_host: '192.168.50.1',\n        mqtt_port: 1883\n    });\n}\n\nmsg.payload = {\n    status: 'System initialized',\n    timestamp: new Date()\n};\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -648,8 +659,8 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Trigger Update",
-        "func": "return [msg, msg];",
-        "outputs": 2,
+        "func": "return [msg, msg, msg];",
+        "outputs": 3,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
@@ -662,6 +673,9 @@
             ],
             [
                 "update_registered_list"
+            ],
+            [
+                "system_status_update"
             ]
         ]
     },
@@ -670,8 +684,8 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Update Module Display",
-        "func": "const selectedId = global.get('selected_module');\nif (!selectedId) {\n    return [\n        {payload: 0},\n        {payload: '--'},\n        {payload: '--'},\n        {payload: 'No module selected'},\n        {payload: 'Unknown'},\n        {payload: '--'},\n        {payload: ''}\n    ];\n}\n\nconst active = global.get('active_modules') || {};\nconst module = active[selectedId];\n\nif (!module) {\n    return [\n        {payload: 0},\n        {payload: '--'},\n        {payload: '--'},\n        {payload: selectedId},\n        {payload: 'Offline'},\n        {payload: 'Never'},\n        {payload: selectedId}\n    ];\n}\n\nconst state = module.state || {};\nconst timeDiff = new Date() - new Date(module.lastUpdate);\nconst isRecent = timeDiff < 30000; // Within 30 seconds\n\nlet statusText = 'Unknown';\nif (module.online && isRecent) {\n    statusText = 'Online';\n} else if (module.online && !isRecent) {\n    statusText = 'Stale Data';\n} else {\n    statusText = 'Offline';\n}\n\nconst lastSeenText = new Date(module.lastUpdate).toLocaleString();\n\nreturn [\n    {payload: state.valid ? state.pct : 0},\n    {payload: state.valid ? `${state.ml} mL` : '--'},\n    {payload: state.pump || 'STOP'},\n    {payload: module.name},\n    {payload: statusText},\n    {payload: lastSeenText},\n    {payload: module.name}\n];",
-        "outputs": 7,
+        "func": "const selectedId = global.get('selected_module');\nif (!selectedId) {\n    return [\n        {payload: 0},\n        {payload: '--'},\n        {payload: '--'},\n        {payload: 'No module selected'},\n        {payload: 'Unknown'},\n        {payload: '--'}\n    ];\n}\n\nconst active = global.get('active_modules') || {};\nconst module = active[selectedId];\n\nif (!module) {\n    return [\n        {payload: 0},\n        {payload: '--'},\n        {payload: '--'},\n        {payload: selectedId},\n        {payload: 'Offline'},\n        {payload: 'Never'}\n    ];\n}\n\nconst state = module.state || {};\nconst timeDiff = new Date() - new Date(module.lastUpdate);\nconst isRecent = timeDiff < 30000; // Within 30 seconds\n\nlet statusText = 'Unknown';\nif (module.online && isRecent) {\n    statusText = 'Online';\n} else if (module.online && !isRecent) {\n    statusText = 'Stale Data';\n} else {\n    statusText = 'Offline';\n}\n\nconst lastSeenText = new Date(module.lastUpdate).toLocaleString();\n\nreturn [\n    {payload: state.valid ? state.pct : 0},\n    {payload: state.valid ? `${state.ml} mL` : '--'},\n    {payload: state.pump || 'STOP'},\n    {payload: module.name},\n    {payload: statusText},\n    {payload: lastSeenText}\n];",
+        "outputs": 6,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
@@ -696,9 +710,6 @@
             ],
             [
                 "ui_last_seen"
-            ],
-            [
-                "ui_name_input"
             ]
         ]
     },
@@ -931,7 +942,7 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Store Duration",
-        "func": "const duration = parseInt(msg.payload) || 0;\nflow.set('pump_duration', duration);\nnode.log(`Pump duration set to: ${duration}ms`);\nreturn msg;",
+        "func": "const duration = parseInt(msg.payload) || 0;\nflow.set('pump_duration', duration);\nnode.log(`Pump duration set to: ${duration}ms`);\n// Also store in global for extra reliability\nglobal.set('pump_duration', duration);\nmsg.payload = duration;\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -948,7 +959,7 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Fixed Pump Control",
-        "func": "const selectedModule = global.get('selected_module');\nif (!selectedModule) {\n    msg.notification = '⚠️ Please select a module first';\n    return [null, msg];\n}\n\n// Check if module is online\nconst active = global.get('active_modules') || {};\nconst moduleData = active[selectedModule];\nif (!moduleData || !moduleData.online) {\n    msg.notification = `❌ Module ${selectedModule} is offline`;\n    return [null, msg];\n}\n\n// Get duration and ensure it's a number\nconst duration = parseInt(flow.get('pump_duration')) || 0;\n\nmsg.topic = `cocktail/bottle/${selectedModule}/cmd`;\n\nif (msg.payload === 'STOP') {\n    msg.payload = {\n        action: 'stop',\n        timestamp: new Date().toISOString(),\n        source: 'dashboard'\n    };\n    msg.notification = `🛑 Pump STOP sent to ${moduleData.name}`;\n} else if (msg.payload === 'FWD') {\n    msg.payload = {\n        action: 'dose',\n        dir: 'FWD',\n        ms: duration,\n        timestamp: new Date().toISOString(),\n        source: 'dashboard'\n    };\n    msg.notification = `▶️ Pump FWD (${duration}ms) sent to ${moduleData.name}`;\n} else if (msg.payload === 'REV') {\n    msg.payload = {\n        action: 'prime',\n        dir: 'REV',\n        ms: duration,\n        timestamp: new Date().toISOString(),\n        source: 'dashboard'\n    };\n    msg.notification = `◀️ Pump REV (${duration}ms) sent to ${moduleData.name}`;\n}\n\n// Enhanced logging\nnode.log(`Pump command sent to ${selectedModule}: ${JSON.stringify(msg.payload)}`);\n\nreturn [msg, msg];",
+        "func": "const selectedModule = global.get('selected_module');\nif (!selectedModule) {\n    msg.notification = '⚠️ Please select a module first';\n    return [null, msg];\n}\n\n// Check if module is online\nconst active = global.get('active_modules') || {};\nconst moduleData = active[selectedModule];\nif (!moduleData || !moduleData.online) {\n    msg.notification = `❌ Module ${selectedModule} is offline`;\n    return [null, msg];\n}\n\n// Get duration from both flow and global storage for reliability\nlet duration = parseInt(flow.get('pump_duration')) || parseInt(global.get('pump_duration')) || 0;\nnode.log(`Using duration: ${duration}ms (flow: ${flow.get('pump_duration')}, global: ${global.get('pump_duration')})`);\n\nmsg.topic = `cocktail/bottle/${selectedModule}/cmd`;\n\nif (msg.payload === 'STOP') {\n    msg.payload = {\n        action: 'stop',\n        timestamp: new Date().toISOString(),\n        source: 'dashboard'\n    };\n    msg.notification = `🛑 Pump STOP sent to ${moduleData.name}`;\n} else if (msg.payload === 'FWD') {\n    msg.payload = {\n        action: 'dose',\n        dir: 'FWD',\n        ms: duration,\n        timestamp: new Date().toISOString(),\n        source: 'dashboard'\n    };\n    msg.notification = `▶️ Pump FWD (${duration}ms) sent to ${moduleData.name}`;\n} else if (msg.payload === 'REV') {\n    msg.payload = {\n        action: 'prime',\n        dir: 'REV',\n        ms: duration,\n        timestamp: new Date().toISOString(),\n        source: 'dashboard'\n    };\n    msg.notification = `◀️ Pump REV (${duration}ms) sent to ${moduleData.name}`;\n}\n\n// Enhanced logging\nnode.log(`Pump command sent to ${selectedModule}: ${JSON.stringify(msg.payload)}`);\n\nreturn [msg, msg];",
         "outputs": 2,
         "noerr": 0,
         "initialize": "",
@@ -996,7 +1007,7 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Store Name",
-        "func": "flow.set('pending_name', msg.payload);\nnode.log(`Pending name set to: ${msg.payload}`);\nreturn null;",
+        "func": "// Debug logging\nnode.log(`Name input received: '${msg.payload}' from topic: '${msg.topic}'`);\nflow.set('pending_name', msg.payload);\nnode.log(`Pending name stored: '${flow.get('pending_name')}'`);\nreturn null;",
         "outputs": 0,
         "noerr": 0,
         "initialize": "",
@@ -1039,7 +1050,7 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Fixed Send Name Update",
-        "func": "const selectedModule = global.get('selected_module');\nif (!selectedModule) {\n    msg.notification = '⚠️ Please select a module first';\n    return [null, msg];\n}\n\nconst newName = flow.get('pending_name');\nif (!newName || newName.trim() === '') {\n    msg.notification = '⚠️ Please enter a name';\n    return [null, msg];\n}\n\n// Check if module is online\nconst active = global.get('active_modules') || {};\nconst moduleData = active[selectedModule];\nif (!moduleData || !moduleData.online) {\n    msg.notification = `❌ Module ${selectedModule} is offline`;\n    return [null, msg];\n}\n\n// Update stored data\nlet registered = flow.get('registered_modules') || {};\nif (registered[selectedModule]) {\n    registered[selectedModule].name = newName.trim();\n    flow.set('registered_modules', registered);\n}\n\nif (active[selectedModule]) {\n    active[selectedModule].name = newName.trim();\n    global.set('active_modules', active);\n}\n\n// Send command to module with correct format\nmsg.topic = `cocktail/bottle/${selectedModule}/cmd`;\nmsg.payload = {\n    action: 'set_name',\n    name: newName.trim(),\n    timestamp: new Date().toISOString(),\n    source: 'dashboard'\n};\n\nconst notification = {\n    notification: `✏️ Name change sent to ${selectedModule}: ${newName.trim()}`\n};\n\nnode.log(`Name change command sent to ${selectedModule}: ${newName.trim()}`);\n\nreturn [msg, notification];",
+        "func": "const selectedModule = global.get('selected_module');\nif (!selectedModule) {\n    msg.notification = '⚠️ Please select a module first';\n    return [null, msg];\n}\n\nconst newName = flow.get('pending_name');\nnode.log(`Send name called - Selected: ${selectedModule}, Pending name: '${newName}'`);\n\nif (!newName || newName.trim() === '') {\n    msg.notification = '⚠️ Please enter a name';\n    return [null, msg];\n}\n\n// Check if module is online\nconst active = global.get('active_modules') || {};\nconst moduleData = active[selectedModule];\nif (!moduleData || !moduleData.online) {\n    msg.notification = `❌ Module ${selectedModule} is offline`;\n    return [null, msg];\n}\n\n// Update stored data\nlet registered = flow.get('registered_modules') || {};\nif (registered[selectedModule]) {\n    registered[selectedModule].name = newName.trim();\n    flow.set('registered_modules', registered);\n}\n\nif (active[selectedModule]) {\n    active[selectedModule].name = newName.trim();\n    global.set('active_modules', active);\n}\n\n// Send command to module with correct format\nmsg.topic = `cocktail/bottle/${selectedModule}/cmd`;\nmsg.payload = {\n    action: 'set_name',\n    name: newName.trim(),\n    timestamp: new Date().toISOString(),\n    source: 'dashboard'\n};\n\nconst notification = {\n    notification: `✏️ Name change sent to ${selectedModule}: ${newName.trim()}`\n};\n\nnode.log(`Name change command sent to ${selectedModule}: ${newName.trim()}`);\nnode.log(`MQTT payload: ${JSON.stringify(msg.payload)}`);\n\nreturn [msg, notification];",
         "outputs": 2,
         "noerr": 0,
         "initialize": "",
@@ -1299,8 +1310,8 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "System Status",
-        "func": "const active = global.get('active_modules') || {};\nconst registered = flow.get('registered_modules') || {};\n\nlet onlineCount = 0;\nlet totalCount = Object.keys(registered).length;\n\nfor (const key in registered) {\n    if (active[key]) {\n        const timeDiff = new Date() - new Date(active[key].lastUpdate);\n        const isRecent = timeDiff < 30000;\n        \n        if (active[key].online && isRecent) {\n            onlineCount++;\n        }\n    }\n}\n\nlet statusText = '🍹 Cocktail Machine System - Working Version';\nlet statusColor = '#4caf50';\n\nif (totalCount === 0) {\n    statusText += ' - No modules registered';\n    statusColor = '#666';\n} else if (onlineCount === totalCount) {\n    statusText += ` - All ${totalCount} modules online`;\n} else {\n    statusText += ` - ${onlineCount}/${totalCount} modules online`;\n    statusColor = onlineCount > 0 ? '#ff9800' : '#f44336';\n}\n\nmsg.payload = statusText;\nmsg.color = statusColor;\nreturn msg;",
-        "outputs": 1,
+        "func": "const active = global.get('active_modules') || {};\nconst registered = flow.get('registered_modules') || {};\n\nlet onlineCount = 0;\nlet totalCount = Object.keys(registered).length;\n\nfor (const key in registered) {\n    if (active[key]) {\n        const timeDiff = new Date() - new Date(active[key].lastUpdate);\n        const isRecent = timeDiff < 30000;\n        \n        if (active[key].online && isRecent) {\n            onlineCount++;\n        }\n    }\n}\n\nlet statusText = '🍹 Cocktail Machine System - Working Version';\nlet statusColor = '#4caf50';\n\nif (totalCount === 0) {\n    statusText += ' - No modules registered';\n    statusColor = '#666';\n} else if (onlineCount === totalCount) {\n    statusText += ` - All ${totalCount} modules online`;\n} else {\n    statusText += ` - ${onlineCount}/${totalCount} modules online`;\n    statusColor = onlineCount > 0 ? '#ff9800' : '#f44336';\n}\n\n// Build dashboard modules list\nlet modulesList = 'Registered Modules:\\n';\nlet count = 0;\n\nfor (const key in registered) {\n    count++;\n    const module = registered[key];\n    const activeModule = active[key];\n    \n    let status = 'Offline';\n    let level = '--';\n    \n    if (activeModule) {\n        const timeDiff = new Date() - new Date(activeModule.lastUpdate);\n        const isRecent = timeDiff < 30000; // Within 30 seconds\n        \n        if (activeModule.online && isRecent) {\n            status = 'Online';\n        } else if (activeModule.online && !isRecent) {\n            status = 'Stale';\n        }\n        \n        if (activeModule.state && activeModule.state.valid) {\n            level = `${activeModule.state.pct}%`;\n        }\n    }\n    \n    modulesList += `${count}. ${module.name} (${key}) - ${level} - ${status}\\n`;\n}\n\nif (count === 0) {\n    modulesList += 'No registered modules';\n}\n\nreturn [\n    {payload: statusText, color: statusColor},\n    {payload: modulesList}\n];",
+        "outputs": 2,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
@@ -1310,6 +1321,9 @@
         "wires": [
             [
                 "ui_system_status"
+            ],
+            [
+                "ui_dashboard_modules"
             ]
         ]
     },
@@ -1319,7 +1333,7 @@
         "z": "cocktail_main_tab",
         "group": "ui_group_overview",
         "order": 1,
-        "width": "12",
+        "width": "6",
         "height": "1",
         "name": "System Status",
         "label": "",
@@ -1328,6 +1342,23 @@
         "className": "",
         "x": 790,
         "y": 60,
+        "wires": []
+    },
+    {
+        "id": "ui_dashboard_modules",
+        "type": "ui_text",
+        "z": "cocktail_main_tab",
+        "group": "ui_group_dashboard_modules",
+        "order": 1,
+        "width": "6",
+        "height": "4",
+        "name": "Dashboard Module List",
+        "label": "",
+        "format": "<pre style=\"font-size: 12px; line-height: 1.2;\">{{msg.payload}}</pre>",
+        "layout": "col-center",
+        "className": "",
+        "x": 790,
+        "y": 100,
         "wires": []
     },
     {
