@@ -1,0 +1,12 @@
+{
+    "name": "cocktail-admin",
+    "description": "A Node-RED Project",
+    "version": "0.0.1",
+    "dependencies": {},
+    "node-red": {
+        "settings": {
+            "flowFile": "flows_cocktailpi.json",
+            "credentialsFile": "flows_cocktailpi_cred.json"
+        }
+    }
+}
