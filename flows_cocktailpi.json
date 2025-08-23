@@ -10,9 +10,9 @@
     {
         "id": "cocktail_main_tab",
         "type": "tab",
-        "label": "Cocktail Machine System - Fixed",
+        "label": "Cocktail Machine System - Working",
         "disabled": false,
-        "info": "Simple, working cocktail machine control system"
+        "info": "Working cocktail machine control system"
     },
     {
         "id": "mqtt_broker",
@@ -215,6 +215,37 @@
         }
     },
     {
+        "id": "ui_tab_settings",
+        "type": "ui_tab",
+        "name": "Settings",
+        "icon": "settings",
+        "order": 3,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "ui_group_auth",
+        "type": "ui_group",
+        "name": "Access Control",
+        "tab": "ui_tab_settings",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "ui_group_network",
+        "type": "ui_group",
+        "name": "Network Settings",
+        "tab": "ui_tab_settings",
+        "order": 2,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
         "id": "init_system",
         "type": "inject",
         "z": "cocktail_main_tab",
@@ -244,7 +275,7 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Initialize Storage",
-        "func": "// Initialize all storage\nflow.set('registered_modules', flow.get('registered_modules') || {});\nglobal.set('discovered_modules', {});\nglobal.set('active_modules', {});\nglobal.set('selected_module', null);\nglobal.set('selected_discovered', null);\n\n// Initialize pump duration with default value\nflow.set('pump_duration', 1000);\n\n// Default network settings\nlet netSettings = flow.get('network_settings');\nif (!netSettings) {\n    flow.set('network_settings', {\n        home_ssid: '',\n        home_pass: '',\n        ap_ssid: 'CocktailMachine',\n        ap_pass: 'Cocktail2024!',\n        mqtt_host: '192.168.50.1',\n        mqtt_port: 1883\n    });\n}\n\nmsg.payload = {\n    status: 'System initialized',\n    timestamp: new Date()\n};\nreturn msg;",
+        "func": "// Initialize all storage\nflow.set('registered_modules', flow.get('registered_modules') || {});\nglobal.set('discovered_modules', {});\nglobal.set('active_modules', {});\nglobal.set('selected_module', null);\nglobal.set('selected_discovered', null);\nglobal.set('admin_authenticated', false);\n\n// Initialize pump duration with default value\nflow.set('pump_duration', 1000);\n\n// Default network settings\nlet netSettings = flow.get('network_settings');\nif (!netSettings) {\n    flow.set('network_settings', {\n        home_ssid: '',\n        home_pass: '',\n        ap_ssid: 'CocktailMachine',\n        ap_pass: 'Cocktail2024!',\n        mqtt_host: '192.168.50.1',\n        mqtt_port: 1883\n    });\n}\n\nmsg.payload = {\n    status: 'System initialized',\n    timestamp: new Date()\n};\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -315,10 +346,10 @@
         "y": 140,
         "wires": [
             [
-                "update_discovered_dropdown"
+                "update_discovered_list"
             ],
             [
-                "update_registered_dropdown"
+                "update_registered_list"
             ],
             [
                 "update_module_display"
@@ -340,72 +371,105 @@
         "y": 200,
         "wires": [
             [
-                "update_discovered_dropdown"
+                "update_discovered_list"
             ],
             [
-                "update_registered_dropdown"
+                "update_registered_list"
             ]
         ]
     },
     {
-        "id": "update_discovered_dropdown",
+        "id": "update_discovered_list",
         "type": "function",
         "z": "cocktail_main_tab",
-        "name": "Update Discovered Dropdown",
-        "func": "const registered = flow.get('registered_modules') || {};\nconst discovered = global.get('discovered_modules') || {};\nconst active = global.get('active_modules') || {};\n\n// Build discovered list (unregistered only)\nlet discList = [];\nfor (const key in discovered) {\n    if (!registered[key] && active[key] && active[key].online) {\n        discList.push({\n            value: key,\n            label: `${discovered[key].name} (${key})`\n        });\n    }\n}\n\n// Add empty option\ndiscList.unshift({value: '', label: 'Select a module...'});\n\nmsg.payload = discList;\nmsg.topic = 'discovered_options';\nreturn msg;",
+        "name": "Update Discovered List",
+        "func": "const registered = flow.get('registered_modules') || {};\nconst discovered = global.get('discovered_modules') || {};\nconst active = global.get('active_modules') || {};\n\n// Build discovered list (unregistered only)\nlet discList = 'Discovered Modules:\\n';\nlet count = 0;\n\nfor (const key in discovered) {\n    if (!registered[key] && active[key] && active[key].online) {\n        count++;\n        const state = active[key].state || {};\n        const level = state.valid ? `${state.pct}%` : '--';\n        discList += `${count}. ${discovered[key].name} (${key}) - Level: ${level}\\n`;\n    }\n}\n\nif (count === 0) {\n    discList += 'No unregistered modules found';\n}\n\nmsg.payload = discList;\nmsg.count = count;\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 580,
+        "x": 560,
         "y": 120,
         "wires": [
             [
-                "ui_discovered_dropdown"
+                "ui_discovered_text"
             ]
         ]
     },
     {
-        "id": "update_registered_dropdown",
+        "id": "update_registered_list",
         "type": "function",
         "z": "cocktail_main_tab",
-        "name": "Update Registered Dropdown",
-        "func": "const registered = flow.get('registered_modules') || {};\nconst active = global.get('active_modules') || {};\n\n// Build registered list\nlet regList = [];\nfor (const key in registered) {\n    const module = registered[key];\n    const activeModule = active[key];\n    \n    let status = 'Offline';\n    let level = '--';\n    \n    if (activeModule) {\n        const timeDiff = new Date() - new Date(activeModule.lastUpdate);\n        const isRecent = timeDiff < 30000; // Within 30 seconds\n        \n        if (activeModule.online && isRecent) {\n            status = 'Online';\n        } else if (activeModule.online && !isRecent) {\n            status = 'Stale';\n        }\n        \n        if (activeModule.state && activeModule.state.valid) {\n            level = `${activeModule.state.pct}%`;\n        }\n    }\n    \n    regList.push({\n        value: key,\n        label: `${module.name} (${level}) - ${status}`\n    });\n}\n\n// Add empty option\nregList.unshift({value: '', label: 'Select a module...'});\n\nmsg.payload = regList;\nmsg.topic = 'registered_options';\nreturn msg;",
+        "name": "Update Registered List",
+        "func": "const registered = flow.get('registered_modules') || {};\nconst active = global.get('active_modules') || {};\n\n// Build registered list\nlet regList = 'Registered Modules:\\n';\nlet count = 0;\n\nfor (const key in registered) {\n    count++;\n    const module = registered[key];\n    const activeModule = active[key];\n    \n    let status = 'Offline';\n    let level = '--';\n    \n    if (activeModule) {\n        const timeDiff = new Date() - new Date(activeModule.lastUpdate);\n        const isRecent = timeDiff < 30000; // Within 30 seconds\n        \n        if (activeModule.online && isRecent) {\n            status = 'Online';\n        } else if (activeModule.online && !isRecent) {\n            status = 'Stale';\n        }\n        \n        if (activeModule.state && activeModule.state.valid) {\n            level = `${activeModule.state.pct}%`;\n        }\n    }\n    \n    regList += `${count}. ${module.name} (${key}) - ${level} - ${status}\\n`;\n}\n\nif (count === 0) {\n    regList += 'No registered modules';\n}\n\nmsg.payload = regList;\nmsg.count = count;\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 580,
+        "x": 560,
         "y": 160,
         "wires": [
             [
-                "ui_registered_dropdown"
+                "ui_registered_text"
             ]
         ]
     },
     {
-        "id": "ui_discovered_dropdown",
-        "type": "ui_dropdown",
+        "id": "ui_discovered_text",
+        "type": "ui_text",
         "z": "cocktail_main_tab",
-        "name": "Select Discovered Module",
-        "label": "Discovered Modules:",
-        "tooltip": "",
-        "place": "Select...",
         "group": "ui_group_discovered",
         "order": 1,
         "width": "6",
-        "height": "1",
-        "passthru": false,
-        "multiple": false,
-        "options": [],
-        "payload": "",
-        "topic": "discovered_selection",
-        "topicType": "str",
+        "height": "4",
+        "name": "Discovered List",
+        "label": "",
+        "format": "<pre style=\"font-size: 12px; line-height: 1.2;\">{{msg.payload}}</pre>",
+        "layout": "col-center",
         "className": "",
-        "x": 820,
+        "x": 770,
         "y": 120,
+        "wires": []
+    },
+    {
+        "id": "ui_registered_text",
+        "type": "ui_text",
+        "z": "cocktail_main_tab",
+        "group": "ui_group_registered",
+        "order": 1,
+        "width": "6",
+        "height": "4",
+        "name": "Registered List",
+        "label": "",
+        "format": "<pre style=\"font-size: 12px; line-height: 1.2;\">{{msg.payload}}</pre>",
+        "layout": "col-center",
+        "className": "",
+        "x": 770,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "ui_discovered_input",
+        "type": "ui_text_input",
+        "z": "cocktail_main_tab",
+        "name": "Select Discovered ID",
+        "label": "Enter Module ID to register:",
+        "tooltip": "",
+        "group": "ui_group_discovered",
+        "order": 2,
+        "width": "6",
+        "height": "1",
+        "passthru": true,
+        "mode": "text",
+        "delay": "0",
+        "topic": "discovered_id",
+        "sendOnBlur": false,
+        "className": "",
+        "topicType": "str",
+        "x": 140,
+        "y": 280,
         "wires": [
             [
                 "store_selected_discovered"
@@ -413,26 +477,25 @@
         ]
     },
     {
-        "id": "ui_registered_dropdown",
-        "type": "ui_dropdown",
+        "id": "ui_registered_input",
+        "type": "ui_text_input",
         "z": "cocktail_main_tab",
-        "name": "Select Registered Module",
-        "label": "Registered Modules:",
+        "name": "Select Registered ID",
+        "label": "Enter Module ID to control:",
         "tooltip": "",
-        "place": "Select...",
         "group": "ui_group_registered",
-        "order": 1,
+        "order": 2,
         "width": "6",
         "height": "1",
-        "passthru": false,
-        "multiple": false,
-        "options": [],
-        "payload": "",
-        "topic": "registered_selection",
-        "topicType": "str",
+        "passthru": true,
+        "mode": "text",
+        "delay": "0",
+        "topic": "registered_id",
+        "sendOnBlur": false,
         "className": "",
-        "x": 820,
-        "y": 160,
+        "topicType": "str",
+        "x": 140,
+        "y": 340,
         "wires": [
             [
                 "store_selected_module"
@@ -444,7 +507,7 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Store Selected Discovered",
-        "func": "global.set('selected_discovered', msg.payload);\nnode.log(`Selected discovered module: ${msg.payload}`);\nreturn msg;",
+        "func": "global.set('selected_discovered', msg.payload);\nnode.log(`Selected discovered module: ${msg.payload}`);\nmsg.notification = `Selected discovered: ${msg.payload}`;\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -453,7 +516,9 @@
         "x": 380,
         "y": 280,
         "wires": [
-            []
+            [
+                "ui_toast"
+            ]
         ]
     },
     {
@@ -461,8 +526,8 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Store Selected Module",
-        "func": "global.set('selected_module', msg.payload);\nnode.log(`Selected registered module: ${msg.payload}`);\nreturn msg;",
-        "outputs": 1,
+        "func": "global.set('selected_module', msg.payload);\nnode.log(`Selected registered module: ${msg.payload}`);\nmsg.notification = `Selected for control: ${msg.payload}`;\nreturn [msg, msg];",
+        "outputs": 2,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
@@ -472,6 +537,9 @@
         "wires": [
             [
                 "update_module_display"
+            ],
+            [
+                "ui_toast"
             ]
         ]
     },
@@ -481,7 +549,7 @@
         "z": "cocktail_main_tab",
         "name": "Register Module",
         "group": "ui_group_discovered",
-        "order": 2,
+        "order": 3,
         "width": "6",
         "height": "1",
         "passthru": false,
@@ -508,7 +576,7 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Register Module",
-        "func": "const selectedId = global.get('selected_discovered');\nif (!selectedId) {\n    msg.notification = '⚠️ Please select a module first';\n    return [null, msg];\n}\n\nconst discovered = global.get('discovered_modules') || {};\nconst active = global.get('active_modules') || {};\nlet registered = flow.get('registered_modules') || {};\n\nif (registered[selectedId]) {\n    msg.notification = '⚠️ Module already registered';\n    return [null, msg];\n}\n\nconst moduleInfo = discovered[selectedId] || active[selectedId];\nif (!moduleInfo) {\n    msg.notification = '❌ Module not found';\n    return [null, msg];\n}\n\n// Register the module\nregistered[selectedId] = {\n    id: selectedId,\n    name: moduleInfo.name || selectedId,\n    registered: new Date()\n};\nflow.set('registered_modules', registered);\n\n// Remove from discovered\ndelete discovered[selectedId];\nglobal.set('discovered_modules', discovered);\nglobal.set('selected_discovered', null);\n\nmsg.notification = `✅ Module ${moduleInfo.name} registered successfully`;\nmsg.payload = true;\n\nnode.log(`Module ${selectedId} registered successfully`);\n\nreturn [msg, msg];",
+        "func": "const selectedId = global.get('selected_discovered');\nif (!selectedId) {\n    msg.notification = '⚠️ Please enter a module ID first';\n    return [null, msg];\n}\n\nconst discovered = global.get('discovered_modules') || {};\nconst active = global.get('active_modules') || {};\nlet registered = flow.get('registered_modules') || {};\n\nif (registered[selectedId]) {\n    msg.notification = '⚠️ Module already registered';\n    return [null, msg];\n}\n\nconst moduleInfo = discovered[selectedId] || active[selectedId];\nif (!moduleInfo) {\n    msg.notification = '❌ Module not found';\n    return [null, msg];\n}\n\n// Register the module\nregistered[selectedId] = {\n    id: selectedId,\n    name: moduleInfo.name || selectedId,\n    registered: new Date()\n};\nflow.set('registered_modules', registered);\n\n// Remove from discovered\ndelete discovered[selectedId];\nglobal.set('discovered_modules', discovered);\nglobal.set('selected_discovered', null);\n\nmsg.notification = `✅ Module ${moduleInfo.name} registered successfully`;\nmsg.payload = true;\n\nnode.log(`Module ${selectedId} registered successfully`);\n\nreturn [msg, msg];",
         "outputs": 2,
         "noerr": 0,
         "initialize": "",
@@ -531,7 +599,7 @@
         "z": "cocktail_main_tab",
         "name": "Delete Module",
         "group": "ui_group_registered",
-        "order": 2,
+        "order": 3,
         "width": "6",
         "height": "1",
         "passthru": false,
@@ -558,7 +626,7 @@
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "Delete Module",
-        "func": "const selectedId = global.get('selected_module');\nif (!selectedId) {\n    msg.notification = '⚠️ Please select a module first';\n    return [null, msg];\n}\n\nlet registered = flow.get('registered_modules') || {};\nconst moduleName = registered[selectedId] ? registered[selectedId].name : selectedId;\n\ndelete registered[selectedId];\nflow.set('registered_modules', registered);\nglobal.set('selected_module', null);\n\nnode.log(`Module ${selectedId} unregistered`);\n\nmsg.notification = `🗑️ Module ${moduleName} unregistered`;\nreturn [msg, msg];",
+        "func": "const selectedId = global.get('selected_module');\nif (!selectedId) {\n    msg.notification = '⚠️ Please enter a module ID first';\n    return [null, msg];\n}\n\nlet registered = flow.get('registered_modules') || {};\nconst moduleName = registered[selectedId] ? registered[selectedId].name : selectedId;\n\ndelete registered[selectedId];\nflow.set('registered_modules', registered);\nglobal.set('selected_module', null);\n\nnode.log(`Module ${selectedId} unregistered`);\n\nmsg.notification = `🗑️ Module ${moduleName} unregistered`;\nreturn [msg, msg];",
         "outputs": 2,
         "noerr": 0,
         "initialize": "",
@@ -590,10 +658,10 @@
         "y": 430,
         "wires": [
             [
-                "update_discovered_dropdown"
+                "update_discovered_list"
             ],
             [
-                "update_registered_dropdown"
+                "update_registered_list"
             ]
         ]
     },
@@ -989,11 +1057,249 @@
         ]
     },
     {
+        "id": "ui_password",
+        "type": "ui_text_input",
+        "z": "cocktail_main_tab",
+        "name": "Password",
+        "label": "Admin Password:",
+        "tooltip": "",
+        "group": "ui_group_auth",
+        "order": 1,
+        "width": "4",
+        "height": "1",
+        "passthru": false,
+        "mode": "password",
+        "delay": "0",
+        "topic": "password",
+        "sendOnBlur": true,
+        "className": "",
+        "topicType": "str",
+        "x": 110,
+        "y": 1080,
+        "wires": [
+            [
+                "check_password"
+            ]
+        ]
+    },
+    {
+        "id": "check_password",
+        "type": "function",
+        "z": "cocktail_main_tab",
+        "name": "Check Password",
+        "func": "// Default password - CHANGE THIS!\nconst ADMIN_PASSWORD = 'cocktail2024';\n\nif (msg.payload === ADMIN_PASSWORD) {\n    global.set('admin_authenticated', true);\n    msg.notification = '🔓 Admin access granted';\n    msg.payload = true;\n} else {\n    global.set('admin_authenticated', false);\n    msg.notification = '🔒 Access denied - incorrect password';\n    msg.payload = false;\n}\n\nreturn [msg, msg];",
+        "outputs": 2,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 310,
+        "y": 1080,
+        "wires": [
+            [
+                "ui_auth_status"
+            ],
+            [
+                "ui_toast"
+            ]
+        ]
+    },
+    {
+        "id": "ui_auth_status",
+        "type": "ui_text",
+        "z": "cocktail_main_tab",
+        "group": "ui_group_auth",
+        "order": 2,
+        "width": "6",
+        "height": "1",
+        "name": "Auth Status",
+        "label": "Status:",
+        "format": "{{msg.payload ? '🔓 Authenticated' : '🔒 Not Authenticated'}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 530,
+        "y": 1080,
+        "wires": []
+    },
+    {
+        "id": "ui_home_ssid",
+        "type": "ui_text_input",
+        "z": "cocktail_main_tab",
+        "name": "Home SSID",
+        "label": "Home WiFi SSID:",
+        "tooltip": "",
+        "group": "ui_group_network",
+        "order": 1,
+        "width": "6",
+        "height": "1",
+        "passthru": false,
+        "mode": "text",
+        "delay": "0",
+        "topic": "home_ssid",
+        "sendOnBlur": true,
+        "className": "",
+        "topicType": "str",
+        "x": 110,
+        "y": 1140,
+        "wires": [
+            [
+                "store_network"
+            ]
+        ]
+    },
+    {
+        "id": "ui_home_pass",
+        "type": "ui_text_input",
+        "z": "cocktail_main_tab",
+        "name": "Home Pass",
+        "label": "Home WiFi Pass:",
+        "tooltip": "",
+        "group": "ui_group_network",
+        "order": 2,
+        "width": "6",
+        "height": "1",
+        "passthru": false,
+        "mode": "password",
+        "delay": "0",
+        "topic": "home_pass",
+        "sendOnBlur": true,
+        "className": "",
+        "topicType": "str",
+        "x": 110,
+        "y": 1180,
+        "wires": [
+            [
+                "store_network"
+            ]
+        ]
+    },
+    {
+        "id": "store_network",
+        "type": "function",
+        "z": "cocktail_main_tab",
+        "name": "Store Network Settings",
+        "func": "let settings = flow.get('network_settings') || {};\n\nif (msg.topic === 'home_ssid') {\n    settings.home_ssid = msg.payload;\n} else if (msg.topic === 'home_pass') {\n    settings.home_pass = msg.payload;\n}\n\nsettings.lastUpdated = new Date();\nflow.set('network_settings', settings);\nmsg.notification = '📶 Network settings updated';\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 350,
+        "y": 1160,
+        "wires": [
+            [
+                "ui_toast"
+            ]
+        ]
+    },
+    {
+        "id": "ui_apply_network",
+        "type": "ui_button",
+        "z": "cocktail_main_tab",
+        "name": "Apply Network",
+        "group": "ui_group_network",
+        "order": 3,
+        "width": "6",
+        "height": "1",
+        "passthru": false,
+        "label": "Apply Network Settings to All Modules",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "green",
+        "className": "",
+        "icon": "wifi",
+        "payload": "apply",
+        "payloadType": "str",
+        "topic": "apply_network",
+        "topicType": "str",
+        "x": 120,
+        "y": 1220,
+        "wires": [
+            [
+                "apply_network_to_modules"
+            ]
+        ]
+    },
+    {
+        "id": "apply_network_to_modules",
+        "type": "function",
+        "z": "cocktail_main_tab",
+        "name": "Apply Network to Modules",
+        "func": "const isAuthenticated = global.get('admin_authenticated');\nif (!isAuthenticated) {\n    msg.notification = '🔒 Admin authentication required';\n    return [null, msg];\n}\n\nconst settings = flow.get('network_settings') || {};\nif (!settings.home_ssid) {\n    msg.notification = '⚠️ Home SSID not configured';\n    return [null, msg];\n}\n\nconst active = global.get('active_modules') || {};\nconst onlineModules = Object.keys(active).filter(id => active[id].online);\n\nif (onlineModules.length === 0) {\n    msg.notification = '⚠️ No online modules to update';\n    return [null, msg];\n}\n\n// Create network update messages for all online modules\nconst networkMessages = onlineModules.map(moduleId => ({\n    topic: `cocktail/bottle/${moduleId}/cmd`,\n    payload: {\n        action: 'wifi',\n        ssid: settings.home_ssid,\n        pass: settings.home_pass,\n        timestamp: new Date().toISOString(),\n        source: 'network_update'\n    }\n}));\n\nmsg.notification = `📶 Network settings sent to ${onlineModules.length} module(s)`;\nnode.log(`Network update sent to modules: ${onlineModules.join(', ')}`);\n\n// Return notification and all network messages\nreturn [null, msg].concat(networkMessages);",
+        "outputs": 20,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 380,
+        "y": 1220,
+        "wires": [
+            [],
+            [
+                "ui_toast"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ],
+            [
+                "mqtt_out"
+            ]
+        ]
+    },
+    {
         "id": "system_status_update",
         "type": "function",
         "z": "cocktail_main_tab",
         "name": "System Status",
-        "func": "const active = global.get('active_modules') || {};\nconst registered = flow.get('registered_modules') || {};\n\nlet onlineCount = 0;\nlet totalCount = Object.keys(registered).length;\n\nfor (const key in registered) {\n    if (active[key]) {\n        const timeDiff = new Date() - new Date(active[key].lastUpdate);\n        const isRecent = timeDiff < 30000;\n        \n        if (active[key].online && isRecent) {\n            onlineCount++;\n        }\n    }\n}\n\nlet statusText = '🍹 Cocktail Machine System - Simple & Working';\nlet statusColor = '#4caf50';\n\nif (totalCount === 0) {\n    statusText += ' - No modules registered';\n    statusColor = '#666';\n} else if (onlineCount === totalCount) {\n    statusText += ` - All ${totalCount} modules online`;\n} else {\n    statusText += ` - ${onlineCount}/${totalCount} modules online`;\n    statusColor = onlineCount > 0 ? '#ff9800' : '#f44336';\n}\n\nmsg.payload = statusText;\nmsg.color = statusColor;\nreturn msg;",
+        "func": "const active = global.get('active_modules') || {};\nconst registered = flow.get('registered_modules') || {};\n\nlet onlineCount = 0;\nlet totalCount = Object.keys(registered).length;\n\nfor (const key in registered) {\n    if (active[key]) {\n        const timeDiff = new Date() - new Date(active[key].lastUpdate);\n        const isRecent = timeDiff < 30000;\n        \n        if (active[key].online && isRecent) {\n            onlineCount++;\n        }\n    }\n}\n\nlet statusText = '🍹 Cocktail Machine System - Working Version';\nlet statusColor = '#4caf50';\n\nif (totalCount === 0) {\n    statusText += ' - No modules registered';\n    statusColor = '#666';\n} else if (onlineCount === totalCount) {\n    statusText += ` - All ${totalCount} modules online`;\n} else {\n    statusText += ` - ${onlineCount}/${totalCount} modules online`;\n    statusColor = onlineCount > 0 ? '#ff9800' : '#f44336';\n}\n\nmsg.payload = statusText;\nmsg.color = statusColor;\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -1058,7 +1364,7 @@
         "topic": "",
         "name": "Notifications",
         "x": 780,
-        "y": 1000,
+        "y": 1100,
         "wires": []
     }
 ]
